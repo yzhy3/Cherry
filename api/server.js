@@ -1,62 +1,91 @@
-// Asegúrate de tener express.json() activo en api/server.js
-// app.use(express.json());
+import express from 'express';
+import db from '../database/db.js'; // Ajusta la ruta según tu estructura
+import { generateWelcomeCard } from '../module/welcomeCard.js';
+import { AttachmentBuilder } from 'discord.js';
 
-// Obtener configuración de bienvenida + lista de canales del servidor
-app.get('/api/guilds/:guildId/welcome', async (req, res) => {
-    const { guildId } = req.params;
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) return res.status(404).json({ error: 'Servidor no encontrado' });
+export function startApiServer(client) {
+    const app = express();
+    
+    // ⚠️ CRÍTICO: Asegúrate de tener esto activo para leer JSON del panel
+    app.use(express.json());
 
-    const channels = guild.channels.cache
-        .filter(c => c.type === 0) // Solo canales de texto
-        .map(c => ({ id: c.id, name: c.name }));
+    // --- RUTAS DE BIENVENIDA ---
 
-    const config = await db.getWelcomeConfig(guildId) || {
-        enabled: false,
-        channelId: channels[0]?.id || '',
-        message: '¡Hola {user}, bienvenido/a a **{server}**!',
-        cardTitle: '¡BIENVENIDO!',
-        cardSubtitle: 'Eres el miembro #{count} en {server}',
-        bgImage: '',
-        bgColor: '#1e1f22',
-        borderColor: '#ff5c8a',
-        titleColor: '#ffffff',
-        usernameColor: '#ff5c8a',
-        subtitleColor: '#d1d5db',
-        overlayOpacity: 0.55
-    };
+    // 1. Obtener configuración de bienvenida + lista de canales del servidor
+    app.get('/api/guilds/:guildId/welcome', async (req, res) => {
+        try {
+            const { guildId } = req.params;
+            const guild = client.guilds.cache.get(guildId);
+            if (!guild) return res.status(404).json({ error: 'Servidor no encontrado' });
 
-    res.json({ config, channels, guildName: guild.name, memberCount: guild.memberCount });
-});
+            const channels = guild.channels.cache
+                .filter(c => c.type === 0) // Solo canales de texto (GuildText)
+                .map(c => ({ id: c.id, name: c.name }));
 
-// Guardar configuración desde el Dashboard
-app.post('/api/guilds/:guildId/welcome', async (req, res) => {
-    const { guildId } = req.params;
-    await db.saveWelcomeConfig(guildId, req.body);
-    res.json({ success: true });
-});
+            const config = await db.getWelcomeConfig(guildId) || {
+                enabled: false,
+                channelId: channels[0]?.id || '',
+                message: '¡Hola {user}, bienvenido/a a **{server}**!',
+                cardTitle: '¡BIENVENIDO!',
+                cardSubtitle: 'Eres el miembro #{count} en {server}',
+                bgImage: '',
+                bgColor: '#1e1f22',
+                borderColor: '#ff5c8a',
+                titleColor: '#ffffff',
+                usernameColor: '#ff5c8a',
+                subtitleColor: '#d1d5db',
+                overlayOpacity: 0.55
+            };
 
-// Botón "Probar Bienvenida" desde el Dashboard
-app.post('/api/guilds/:guildId/welcome/test', async (req, res) => {
-    const { guildId } = req.params;
-    const { userId, config } = req.body;
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) return res.status(404).json({ error: 'Servidor no encontrado' });
+            res.json({ config, channels, guildName: guild.name, memberCount: guild.memberCount });
+        } catch (err) {
+            console.error('Error en GET welcome:', err);
+            res.status(500).json({ error: err.message });
+        }
+    });
 
-    const member = await guild.members.fetch(userId).catch(() => null);
-    const channel = guild.channels.cache.get(config.channelId);
-    if (!member || !channel) return res.status(400).json({ error: 'Canal o usuario inválido' });
+    // 2. Guardar configuración desde el Dashboard
+    app.post('/api/guilds/:guildId/welcome', async (req, res) => {
+        try {
+            const { guildId } = req.params;
+            await db.saveWelcomeConfig(guildId, req.body);
+            res.json({ success: true });
+        } catch (err) {
+            console.error('Error en POST welcome:', err);
+            res.status(500).json({ error: err.message });
+        }
+    });
 
-    const { generateWelcomeCard } = require('../module/welcomeCard');
-    const { AttachmentBuilder } = require('discord.js');
+    // 3. Botón "Probar Bienvenida" desde el Dashboard
+    app.post('/api/guilds/:guildId/welcome/test', async (req, res) => {
+        try {
+            const { guildId } = req.params;
+            const { userId, config } = req.body;
+            const guild = client.guilds.cache.get(guildId);
+            if (!guild) return res.status(404).json({ error: 'Servidor no encontrado' });
 
-    const buffer = await generateWelcomeCard(member, config);
-    const attachment = new AttachmentBuilder(buffer, { name: 'welcome.png' });
-    const text = (config.message || '')
-        .replace('{user}', `<@${member.id}>`)
-        .replace('{server}', guild.name)
-        .replace('{count}', guild.memberCount);
+            const member = await guild.members.fetch(userId).catch(() => null);
+            const channel = guild.channels.cache.get(config.channelId);
+            if (!member || !channel) return res.status(400).json({ error: 'Canal o usuario inválido' });
 
-    await channel.send({ content: text, files: [attachment] });
-    res.json({ success: true });
-});
+            const buffer = await generateWelcomeCard(member, config);
+            const attachment = new AttachmentBuilder(buffer, { name: 'welcome.png' });
+            
+            const text = (config.message || '')
+                .replace('{user}', `<@${member.id}>`)
+                .replace('{server}', guild.name)
+                .replace('{count}', guild.memberCount);
+
+            await channel.send({ content: text, files: [attachment] });
+            res.json({ success: true });
+        } catch (err) {
+            console.error('Error en TEST welcome:', err);
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`🌐 API escuchando en el puerto ${PORT}`);
+    });
+}
