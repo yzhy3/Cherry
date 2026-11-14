@@ -1,22 +1,12 @@
 {
-  "name": "cherry-bot",
-  "version": "2.0.0",
-  "description": "Cherry - Bot estilo MEE6 en Node.js",
-  "main": "server.js",
+  "name": "cherry",
+  "version": "1.0.0",
   "type": "module",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "deploy": "node deploy-commands.js"
-  },
+  "main": "server.js",
   "dependencies": {
-    "discord.js": "^14.16.3",
+    "@napi-rs/canvas": "^0.1.67",
+    "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1",
-    "cors": "^2.8.5",
-    "ms": "^2.1.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "express": "^4.19.2"
   }
 }
