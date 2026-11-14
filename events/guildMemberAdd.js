@@ -1,8 +1,8 @@
-const { AttachmentBuilder } = require('discord.js');
-const { generateWelcomeCard } = require('../module/welcomeCard');
-const db = require('../database/db');
+import { AttachmentBuilder } from 'discord.js';
+import { generateWelcomeCard } from '../module/welcomeCard.js';
+import db from '../database/db.js';
 
-module.exports = {
+export default {
     name: 'guildMemberAdd',
     async execute(member) {
         const config = await db.getWelcomeConfig(member.guild.id);
