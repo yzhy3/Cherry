@@ -1,14 +1,12 @@
-const express = require('express');
-const app = express();
+// Opcional: útil si hosteas en Replit u otros servicios que necesitan un puerto abierto
+import http from 'http';
 
-app.get('/', (req, res) => {
-  res.send('🍒 CHERRY Bot is alive!');
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Cherry is alive 🍒');
 });
 
-function keepAlive() {
-  app.listen(3000, () => {
-    console.log('🍒 Keep-alive server running on port 3000');
-  });
-}
-
-module.exports = keepAlive;
+const port = process.env.KEEP_ALIVE_PORT || 8080;
+server.listen(port, () => {
+  console.log(`Keep-alive escuchando en puerto ${port}`);
+});

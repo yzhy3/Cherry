@@ -137,7 +137,7 @@ client.once('clientReady', async () => {
 
       if (!hasRule) {
         await guild.autoModerationRules.create({
-          name: 'Filtro AutoMod CHERRY',
+          name: 'AutoMod Cherry',
           eventType: AutoModerationRuleEventType.MessageSend,
           triggerType: AutoModerationRuleTriggerType.Keyword,
           triggerMetadata: {

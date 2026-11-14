@@ -1,45 +1,36 @@
-const { MessageEmbed } = require('discord.js');
-const config = require('./config.json');
+import { EmbedBuilder } from 'discord.js';
+import config from './config.json' with { type: 'json' };
 
-/**
- * Creates a standard CHERRY embed
- */
-function cherryEmbed(title, description, color) {
-  return new MessageEmbed()
-    .setTitle(title || '')
-    .setDescription(description || '')
-    .setColor(color || `#${config.COLOR}`)
-    .setFooter('🍒 CHERRY Bot', '')
+export function cherryEmbed() {
+  return new EmbedBuilder()
+    .setColor(config.color || 0xff69b4)
+    .setFooter({ text: config.embedFooter || 'Cherry Bot 🍒' })
     .setTimestamp();
 }
 
-/**
- * Formats milliseconds into human-readable duration
- */
-function formatDuration(ms) {
-  const seconds = Math.floor((ms / 1000) % 60);
-  const minutes = Math.floor((ms / (1000 * 60)) % 60);
-  const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
-  return [
-    hours > 0 ? `${hours}h` : null,
-    minutes > 0 ? `${minutes}m` : null,
-    `${seconds}s`
-  ].filter(Boolean).join(' ');
+export function errorEmbed(text) {
+  return cherryEmbed().setColor(0xff0000).setDescription(`❌ ${text}`);
 }
 
-/**
- * Checks if a user is an owner
- */
-function isOwner(id) {
-  const { owners } = require('./owner.json');
-  return owners.includes(id);
+export function successEmbed(text) {
+  return cherryEmbed().setColor(0x22c55e).setDescription(`✅ ${text}`);
 }
 
-/**
- * Capitalizes first letter of a string
- */
-function capitalize(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+export function parsePlaceholders(text, { user, guild, memberCount, level } = {}) {
+  if (!text) return text;
+  return text
+    .replace(/{user}/g, user ? `<@${user.id}>` : '')
+    .replace(/{username}/g, user?.username || '')
+    .replace(/{server}/g, guild?.name || '')
+    .replace(/{membercount}/g, memberCount?.toString() || '')
+    .replace(/{level}/g, level?.toString() || '');
 }
 
-module.exports = { cherryEmbed, formatDuration, isOwner, capitalize };
+export function isOwner(userId) {
+  try {
+    const owners = (process.env.OWNER_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+    return owners.includes(userId);
+  } catch {
+    return false;
+  }
+}

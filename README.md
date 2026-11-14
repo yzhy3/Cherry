@@ -1,76 +1,130 @@
-# Verify Callback (Vercel)
+# 🍒 Cherry Bot — Estilo MEE6 (Node.js)
 
-Parte web de verificación para usar **solo en Vercel**.  
-El bot de Discord sigue en tu bot hosting.
+Bot multipropósito inspirado en MEE6.  
+**Estructura simple** (como tu Cherry original) + Dashboard en Next.js para Vercel.
 
-## Flujo
+---
 
-1. Usuario pulsa "Verificar" en Discord (bot hosting)
-2. El bot genera un `state` y lo guarda en **Upstash Redis**
-3. Bot responde con: `https://tu-vercel.app/verify/start?state=...`
-4. Vercel redirige a Discord OAuth
-5. Discord vuelve a `/verify/callback`
-6. Vercel intercambia el code, valida y da el rol vía API de Discord
+## 📁 Estructura (fácil de entender)
 
-## Requisitos
+```
+cherry-mee6/
+├── index.js                 ← Arranca el bot
+├── deploy-commands.js       ← Despliega los slash commands
+├── functions.js             ← Helpers (embeds, placeholders...)
+├── config.json              ← Configuración general
+├── owner.json
+├── keep_alive.js            ← Opcional
+├── .env.example
+│
+├── commands/                ← Todos los comandos slash
+│   ├── admin/               (set-welcome, set-autorole, set-modlog, set-levelrole)
+│   ├── leveling/            (rank, leaderboard)
+│   ├── mod/                 (ban, kick, timeout, warn, warnings, clear)
+│   ├── utility/             (help, ping)
+│   └── info/
+│
+├── handlers/                ← Cargadores de comandos
+├── events/                  ← Eventos de Discord
+├── database/                ← SQLite
+├── api/                     ← API interna para el Dashboard
+│
+└── dashboard/               ← Next.js (se despliega en Vercel)
+```
 
-1. Cuenta en [Upstash](https://console.upstash.com) → crear Redis (gratis)
-2. Proyecto en Vercel
-3. Variables de entorno (ver `.env.example`)
+---
 
-## Despliegue
+## ✨ Features
+
+- Welcome + AutoRole
+- Leveling (XP, rank, leaderboard, role rewards)
+- Moderación completa + AutoMod anti-invite
+- TempVoice
+- Dashboard web con OAuth Discord
+
+---
+
+## 🚀 Cómo arrancar el BOT
 
 ```bash
-# 1. Sube esta carpeta a un repo o impórtala en Vercel
-# 2. En Vercel → Settings → Environment Variables pega todas las del .env.example
-# 3. Deploy
+# 1. Entrar a la carpeta
+cd cherry-mee6
+
+# 2. Instalar
+npm install
+
+# 3. Configurar
+cp .env.example .env
+# Edita .env con tu token, CLIENT_ID, secrets, etc.
+
+# 4. Desplegar comandos slash
+npm run deploy
+
+# 5. Iniciar
+npm start
 ```
 
-En **Discord Developer Portal** → OAuth2 → Redirects agrega:
+### Variables importantes (`.env`)
 
-```
-https://TU-PROYECTO.vercel.app/verify/callback
-```
-
-## Cambios necesarios en el BOT (bot hosting)
-
-En el bot, cuando el usuario pulse el botón de verificar, en vez de usar el store local, guarda el state en Redis (el mismo Upstash) y genera el link apuntando a Vercel.
-
-Ejemplo mínimo:
-
-```js
-import { Redis } from '@upstash/redis';
-import crypto from 'node:crypto';
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
-
-function sign(body) {
-  return crypto.createHmac('sha256', process.env.SESSION_SECRET).update(body).digest('base64url');
-}
-
-function makeState(userId, guildId) {
-  const body = Buffer.from(JSON.stringify({ userId, guildId, n: crypto.randomUUID() })).toString('base64url');
-  return `${body}.${sign(body)}`;
-}
-
-// Dentro del handler del botón:
-const state = makeState(interaction.user.id, interaction.guildId);
-await redis.set(`pending:${state}`, { userId: interaction.user.id, guildId: interaction.guildId }, { ex: 600 });
-
-const url = `${process.env.PUBLIC_URL}/verify/start?state=${state}`;
-// responder con el embed + url
+```env
+DISCORD_TOKEN=...
+CLIENT_ID=...
+CLIENT_SECRET=...
+DISCORD_REDIRECT_URI=https://tu-dashboard.vercel.app/api/auth/callback
+DASHBOARD_URL=https://tu-dashboard.vercel.app
+SESSION_SECRET=cadena_larga_aleatoria
+INTERNAL_API_SECRET=otra_cadena_larga
+PORT=3001
+PUBLIC_BOT_URL=https://tu-bot-host.com
 ```
 
-**Importante:** `PUBLIC_URL`, `SESSION_SECRET` y las keys de Upstash deben ser **las mismas** en el bot y en Vercel.
+---
 
-## Variables de entorno (Vercel)
+## 🌐 Dashboard en Vercel
 
-Copia todas las de `.env.example` en el panel de Vercel.
+1. Sube la carpeta `dashboard/` a Vercel (o pon root directory = `dashboard`).
+2. Variables de entorno en Vercel:
+
+```env
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+NEXTAUTH_URL=https://tu-proyecto.vercel.app
+NEXTAUTH_SECRET=cadena_aleatoria
+BOT_API_URL=https://tu-bot-host.com
+BOT_API_SECRET=el_mismo_INTERNAL_API_SECRET
+```
+
+3. En Discord Developer Portal → OAuth2 → Redirects añade:
+```
+https://tu-proyecto.vercel.app/api/auth/callback
+```
+
+---
+
+## 📋 Comandos
+
+| Categoría     | Comandos                                      |
+|---------------|-----------------------------------------------|
+| Leveling      | `/rank` `/leaderboard` `/set-levelrole`      |
+| Moderación    | `/ban` `/kick` `/timeout` `/warn` `/warnings` `/clear` |
+| Admin         | `/set-welcome` `/set-autorole` `/set-modlog` |
+| Utilidad      | `/help` `/ping`                               |
+
+---
+
+## 🗄 Base de datos
+
+SQLite automático en `data/cherry.db`.  
+No tienes que crear nada a mano.
+
+---
 
 ## Notas
 
-- El bot token se usa desde Vercel para dar el rol (API REST). Asegúrate de que el bot tenga permisos de **Manage Roles** y el rol de verificado esté por debajo del rol del bot.
-- El intent de Server Members no es necesario en Vercel porque no usa discord.js.
+- El **bot** va en cualquier host (Railway, Render, VPS...).
+- El **dashboard** va en **Vercel**.
+- La API del bot tiene que ser pública para que el dashboard pueda hablar con él.
+
+---
+
+**Cherry** 🍒 — Estructura simple, potencia de MEE6.

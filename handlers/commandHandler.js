@@ -1,27 +1,24 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-module.exports = (client) => {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default async function commandHandler(client) {
   const commandsPath = path.join(__dirname, '../commands');
+  const folders = fs.readdirSync(commandsPath);
 
-  fs.readdirSync(commandsPath).forEach(category => {
-    const categoryPath = path.join(commandsPath, category);
-    if (!fs.statSync(categoryPath).isDirectory()) return;
+  for (const folder of folders) {
+    const folderPath = path.join(commandsPath, folder);
+    if (!fs.statSync(folderPath).isDirectory()) continue;
 
-    const files = fs.readdirSync(categoryPath).filter(f => f.endsWith('.js'));
-    files.forEach(file => {
-      const command = require(`${categoryPath}/${file}`);
-      if (!command.name) return;
-
-      client.commands.set(command.name, command);
-
-      if (command.aliases && Array.isArray(command.aliases)) {
-        command.aliases.forEach(alias => client.aliases.set(alias, command.name));
+    const files = fs.readdirSync(folderPath).filter(f => f.endsWith('.js'));
+    for (const file of files) {
+      const cmd = await import(`file://${path.join(folderPath, file)}`);
+      if (cmd.default?.data && cmd.default?.execute) {
+        client.commands.set(cmd.default.data.name, cmd.default);
+        console.log(`✅ Comando: /${cmd.default.data.name}`);
       }
-
-      console.log(`[CHERRY] Loaded command: ${command.name} (${category})`);
-    });
-  });
-
-  console.log(`\n[CHERRY] Loaded ${client.commands.size} commands total.\n`);
-};
+    }
+  }
+}
