@@ -1,4 +1,5 @@
 import { Client, GatewayIntentBits, Collection, Partials, ActivityType } from 'discord.js';
+import { DefaultWebSocketManagerOptions } from '@discordjs/ws';
 import { config } from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -8,6 +9,14 @@ import { startApiServer } from './api/server.js';
 config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ===== Configurar Discord VR =====
+try {
+  DefaultWebSocketManagerOptions.identifyProperties.browser = 'Discord VR';
+  DefaultWebSocketManagerOptions.identifyProperties.device = 'Discord VR';
+} catch (_e) {
+  console.error('No se pudo aplicar Discord VR:', _e);
+}
 
 const client = new Client({
   intents: [
