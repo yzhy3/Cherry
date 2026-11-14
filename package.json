@@ -2,16 +2,15 @@
   "name": "cherry-bot",
   "version": "2.0.0",
   "description": "Cherry - Bot estilo MEE6 en Node.js",
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js",
     "deploy": "node deploy-commands.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
-    "better-sqlite3": "^11.5.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "cors": "^2.8.5",

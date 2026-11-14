@@ -1,172 +1,68 @@
-require('dotenv').config();
-const { 
-  Client, 
-  Collection, 
-  GatewayIntentBits, 
-  Partials, 
-  EmbedBuilder, 
-  ActivityType,
-  REST,
-  Routes,
-  SlashCommandBuilder,
-  AutoModerationRuleTriggerType,
-  AutoModerationActionType,
-  AutoModerationRuleEventType
-} = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const keepAlive = require('./keep_alive.js');
-const config = require('./config.json');
+import { Client, GatewayIntentBits, Collection, Partials, ActivityType } from 'discord.js';
+import { config } from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { startApiServer } from './api/server.js';
 
-// ─── 1. Activar gafas VR verdes ──────────────────────────────────────────────
-try {
-  const { identifyProperties } = require('@discordjs/ws').DefaultWebSocketManagerOptions;
-  identifyProperties.browser = 'Discord VR';
-  identifyProperties.device = 'Discord VR';
-} catch (e) {
-  console.error('Error al configurar Discord VR:', e);
-}
+config();
 
-// ─── 2. Client Setup ─────────────────────────────────────────────────────────
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const client = new Client({
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.MessageContent
-  ]
+  ],
+  partials: [Partials.Message, Partials.Channel, Partials.GuildMember],
 });
 
 client.commands = new Collection();
-client.aliases  = new Collection();
-client.prefix   = config.default_prefix;
-client.color    = `#${config.COLOR}`;
+client.cooldowns = new Collection();
 
-// ─── 3. Load Handlers ────────────────────────────────────────────────────────
+// ===== Cargar handlers =====
 const handlersPath = path.join(__dirname, 'handlers');
 if (fs.existsSync(handlersPath)) {
-  fs.readdirSync(handlersPath).forEach(file => {
-    if (file.endsWith('.js')) {
-      const handler = require(`./handlers/${file}`);
-      handler(client);
-    }
-  });
+  for (const file of fs.readdirSync(handlersPath).filter(f => f.endsWith('.js'))) {
+    const handler = await import(`file://${path.join(handlersPath, file)}`);
+    if (handler.default) await handler.default(client);
+  }
 }
 
-// ─── 4. Responder al comando /ping (para insignia de comandos) ───────────────
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === 'ping') {
-    await interaction.reply(`🏓 ¡Pong! Latencia: ${client.ws.ping}ms`);
+// ===== Cargar events =====
+const eventsPath = path.join(__dirname, 'events');
+for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
+  const event = await import(`file://${path.join(eventsPath, file)}`);
+  if (event.default?.once) {
+    client.once(event.default.name, (...args) => event.default.execute(...args, client));
+  } else if (event.default?.name) {
+    client.on(event.default.name, (...args) => event.default.execute(...args, client));
   }
-});
+  console.log(`✅ Evento: ${event.default?.name || file}`);
+}
 
-// ─── 5. Message Event (Tus comandos normales con prefijo) ────────────────────
-client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.guild) return;
-
-  const prefix = client.prefix;
-  if (!message.content.startsWith(prefix)) return;
-
-  const args    = message.content.slice(prefix.length).trim().split(/ +/g);
-  const cmdName = args.shift().toLowerCase();
-
-  const command = client.commands.get(cmdName)
-    || client.commands.get(client.aliases.get(cmdName));
-
-  if (!command) return;
-
+client.once('clientReady', () => {
+  console.log(`\n🍒 Cherry online como ${client.user.tag}`);
+  console.log(`📊 En ${client.guilds.cache.size} servidores`);
+  client.user.setActivity('Cherry | /help', { type: ActivityType.Watching });
+  
+  // API interna (para el dashboard)
   try {
-    command.run(client, message, args);
+    startApiServer(client);
   } catch (err) {
-    console.error(`[CHERRY] Command error in ${cmdName}:`, err);
-    message.channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor('Red')
-          .setDescription(`❌ An error occurred while running \`${cmdName}\`.`)
-      ]
-    });
+    console.log('⚠️ API interna no iniciada:', err.message);
   }
 });
 
-// ─── 6. Ready Event: Activar Insignias (Slash Commands + AutoMod) ────────────
-client.once('clientReady', async () => {
-  console.log(`\n🍒 CHERRY Bot is online!`);
-  console.log(`   Logged in as: ${client.user.tag}`);
-  console.log(`   Prefix: ${client.prefix}`);
-  console.log(`   Servers: ${client.guilds.cache.size}\n`);
-
-  client.user.setPresence({
-    activities: [{
-      name: `${client.prefix}help | 🍒 CHERRY`,
-      type: ActivityType.Playing
-    }],
-    status: 'online'
-  });
-
-  // A) INSIGNIA: Compatible con comandos (/)
-  const token = process.env.TOKEN || config.token;
-  const rest = new REST({ version: '10' }).setToken(token);
-  const commands = [
-    new SlashCommandBuilder()
-      .setName('ping')
-      .setDescription('Comprueba la velocidad del bot')
-      .toJSON()
-  ];
-
-  try {
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('✅ Comando /ping registrado (Insignia de comandos activada)');
-  } catch (err) {
-    console.error('❌ Error registrando comando /:', err);
-  }
-
-  // B) INSIGNIA: Usa AutoMod
-  // Busca el primer servidor donde esté el bot para crear la regla si no existe
-  const guild = client.guilds.cache.first();
-  if (guild) {
-    try {
-      const existingRules = await guild.autoModerationRules.fetch();
-      const hasRule = existingRules.some(rule => rule.creatorId === client.user.id);
-
-      if (!hasRule) {
-        await guild.autoModerationRules.create({
-          name: 'AutoMod Cherry',
-          eventType: AutoModerationRuleEventType.MessageSend,
-          triggerType: AutoModerationRuleTriggerType.Keyword,
-          triggerMetadata: {
-            keywordFilter: ['palabraprohibidaprueba999']
-          },
-          actions: [
-            {
-              type: AutoModerationActionType.BlockMessage,
-              metadata: {
-                customMessage: 'Mensaje bloqueado por AutoMod.'
-              }
-            }
-          ],
-          enabled: true
-        });
-        console.log(`✅ Regla de AutoMod creada en "${guild.name}" (Insignia de AutoMod activada)`);
-      } else {
-        console.log('ℹ️ El bot ya tiene una regla de AutoMod activa en este servidor.');
-      }
-    } catch (err) {
-      console.error('❌ No se pudo crear la regla de AutoMod (asegúrate de que el bot tenga permiso de Administrador en el servidor):', err.message);
-    }
-  }
+client.login(process.env.DISCORD_TOKEN).catch(err => {
+  console.error('❌ Error al iniciar sesión:', err.message);
+  process.exit(1);
 });
 
-// ─── Error Handling ──────────────────────────────────────────────────────────
-client.on('error', err => console.error('[CHERRY] Client error:', err));
-process.on('unhandledRejection', err => console.error('[CHERRY] Unhandled rejection:', err));
-
-// ─── Start ───────────────────────────────────────────────────────────────────
-keepAlive();
-client.login(process.env.TOKEN || config.token);
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
