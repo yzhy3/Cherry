@@ -10,11 +10,10 @@ config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Parche de Discord VR utilizando la importación existente
 try {
-  const { identifyProperties } =
-  require("@discordjs/ws").DefaultWebSocketManagerOptions;
-  identifyProperties.browser = "Discord VR";
-  identifyProperties.device = "Discord VR";
+  DefaultWebSocketManagerOptions.identifyProperties.browser = "Discord VR";
+  DefaultWebSocketManagerOptions.identifyProperties.device = "Discord VR";
 } catch (_e) {}
 
 const client = new Client({
