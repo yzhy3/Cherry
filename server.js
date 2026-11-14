@@ -10,7 +10,7 @@ config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// ===== Configurar Discord VR (Limpio y compatible con ES Modules) =====
+// ===== Configurar Discord VR (Versión 14.14.0) =====
 try {
   DefaultWebSocketManagerOptions.identifyProperties.browser = 'Discord VR';
   DefaultWebSocketManagerOptions.identifyProperties.device = 'Discord VR';
