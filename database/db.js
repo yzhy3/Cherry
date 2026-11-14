@@ -14,6 +14,7 @@ function load() {
   if (!fs.existsSync(dbPath)) {
     const initial = {
       guild_settings: {},
+      welcome_configs: {}, // Añadido para las tarjetas web
       user_levels: {},
       level_roles: {},
       warnings: {},
@@ -24,10 +25,13 @@ function load() {
     return initial;
   }
   try {
-    return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+    if (!data.welcome_configs) data.welcome_configs = {};
+    return data;
   } catch {
     return {
       guild_settings: {},
+      welcome_configs: {},
       user_levels: {},
       level_roles: {},
       warnings: {},
@@ -54,6 +58,18 @@ setInterval(() => {
 function markDirty() {
   dirty = true;
 }
+
+// ===== NUEVAS FUNCIONES PARA BIENVENIDA WEB / DISCORD =====
+export function getWelcomeConfig(guildId) {
+  return db.welcome_configs[guildId] || null;
+}
+
+export function saveWelcomeConfig(guildId, config) {
+  db.welcome_configs[guildId] = config;
+  markDirty();
+  return true;
+}
+// ========================================================
 
 export function getGuildSettings(guildId) {
   if (!db.guild_settings[guildId]) {
@@ -194,6 +210,8 @@ export function removeTempVoice(channelId) {
 }
 
 export default {
+  getWelcomeConfig,
+  saveWelcomeConfig,
   getGuildSettings,
   updateGuildSettings,
   getUserLevel,
