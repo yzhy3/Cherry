@@ -55,7 +55,14 @@ for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
 client.once('clientReady', () => {
   console.log(`\n🍒 Cherry online como ${client.user.tag}`);
   console.log(`📊 En ${client.guilds.cache.size} servidores`);
-  client.user.setActivity('Cherry | /help', { type: ActivityType.Watching });
+  client.user.setPresence({
+  activities: [{
+    name: '🥽 Realidad Virtual | /help',
+    type: ActivityType.Custom,
+  }],
+  status: 'online',
+});
+
   
   // API interna (para el dashboard)
   try {
