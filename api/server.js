@@ -1,15 +1,13 @@
 import express from 'express';
-import db from '../database/db.js'; // Ajusta la ruta según tu estructura
+import db from '../database/db.js';
 import { generateWelcomeCard } from '../module/welcomeCard.js';
 import { AttachmentBuilder } from 'discord.js';
 
 export function startApiServer(client) {
     const app = express();
     
-    // ⚠️ CRÍTICO: Asegúrate de tener esto activo para leer JSON del panel
+    // Inicializar middleware para leer JSON enviado desde el panel web
     app.use(express.json());
-
-    // --- RUTAS DE BIENVENIDA ---
 
     // 1. Obtener configuración de bienvenida + lista de canales del servidor
     app.get('/api/guilds/:guildId/welcome', async (req, res) => {
@@ -19,7 +17,7 @@ export function startApiServer(client) {
             if (!guild) return res.status(404).json({ error: 'Servidor no encontrado' });
 
             const channels = guild.channels.cache
-                .filter(c => c.type === 0) // Solo canales de texto (GuildText)
+                .filter(c => c.type === 0) // Canales de texto
                 .map(c => ({ id: c.id, name: c.name }));
 
             const config = await db.getWelcomeConfig(guildId) || {
