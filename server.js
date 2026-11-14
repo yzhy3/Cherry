@@ -12,10 +12,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ===== Configurar Discord VR =====
 try {
-  DefaultWebSocketManagerOptions.identifyProperties.browser = 'Discord VR';
-  DefaultWebSocketManagerOptions.identifyProperties.device = 'Discord VR';
-} catch (_e) {
-  console.error('No se pudo aplicar Discord VR:', _e);
+  const { identifyProperties } = require('@discordjs/ws').DefaultWebSocketManagerOptions;
+  identifyProperties.browser = 'Discord VR';
+  identifyProperties.device = 'Discord VR';
+} catch (e) {
+  console.error('Error al configurar Discord VR:', e);
 }
 
 const client = new Client({
