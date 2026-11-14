@@ -1,0 +1,9 @@
+{
+  "token": "YOUR_BOT_TOKEN_HERE",
+  "default_prefix": "!",
+  "owners": "YOUR_DISCORD_ID",
+  "GOOGLE_API_KEY": "",
+  "QUEUE_LIMIT": 0,
+  "AME_API": "",
+  "COLOR": "FF69B4"
+}
