@@ -57,7 +57,7 @@ client.once('clientReady', () => {
   console.log(`📊 En ${client.guilds.cache.size} servidores`);
   client.user.setPresence({
   activities: [{
-    name: '🥽 Realidad Virtual | /help',
+    name: '🔗 /help',
     type: ActivityType.Custom,
   }],
   status: 'online',
