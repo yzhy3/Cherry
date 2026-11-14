@@ -1,99 +1,76 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, AttachmentBuilder } from 'discord.js';
-import { generateWelcomeCard } from '../../module/welcomeCard.js';
-import db from '../../database/db.js';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName('welcome')
-        .setDescription('Configura el sistema de bienvenida estilo Koya')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addSubcommand(sub =>
-            sub.setName('canal')
-                .setDescription('Establece el canal donde se enviarán las bienvenidas')
-                .addChannelOption(opt => opt.setName('canal').setDescription('Canal de texto').addChannelTypes(ChannelType.GuildText).setRequired(true))
-        )
-        .addSubcommand(sub =>
-            sub.setName('personalizar')
-                .setDescription('Personaliza textos, colores y fondo de la tarjeta')
-                .addStringOption(opt => opt.setName('mensaje').setDescription('Mensaje fuera de la imagen (usa {user}, {server}, {count})'))
-                .addStringOption(opt => opt.setName('titulo').setDescription('Título dentro de la imagen (ej. ¡BIENVENIDO!)'))
-                .addStringOption(opt => opt.setName('subtitulo').setDescription('Subtítulo dentro de la imagen (ej. Miembro #{count})'))
-                .addStringOption(opt => opt.setName('fondo_url').setDescription('URL directa de la imagen de fondo (.png/.jpg)'))
-                .addStringOption(opt => opt.setName('color_borde').setDescription('Color HEX del borde y nombre (ej. #ff5c8a)'))
-        )
-        .addSubcommand(sub =>
-            sub.setName('estado')
-                .setDescription('Activa o desactiva las bienvenidas')
-                .addBooleanOption(opt => opt.setName('activo').setDescription('¿Activar?').setRequired(true))
-        )
-        .addSubcommand(sub =>
-            sub.setName('test')
-                .setDescription('Envía una prueba de bienvenida ahora mismo')
-        ),
+export async function generateWelcomeCard(member, config) {
+    const width = 800;
+    const height = 350;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
 
-    async execute(interaction) {
-        const sub = interaction.options.getSubcommand();
-        const guildId = interaction.guild.id;
+    // 1. Fondo (Imagen URL o Color sólido)
+    ctx.fillStyle = config.bgColor || '#1e1f22';
+    ctx.fillRect(0, 0, width, height);
 
-        let config = await db.getWelcomeConfig(guildId) || {
-            enabled: true,
-            channelId: interaction.channel.id,
-            message: '¡Hola {user}, bienvenido/a a **{server}**!',
-            cardTitle: '¡BIENVENIDO!',
-            cardSubtitle: 'Eres el miembro #{count}',
-            bgImage: '',
-            borderColor: '#ff5c8a',
-            usernameColor: '#ff5c8a',
-            titleColor: '#ffffff',
-            subtitleColor: '#d1d5db'
-        };
-
-        if (sub === 'canal') {
-            const channel = interaction.options.getChannel('canal');
-            config.channelId = channel.id;
-            config.enabled = true;
-            await db.saveWelcomeConfig(guildId, config);
-            return interaction.reply({ content: `✅ Canal de bienvenida establecido en ${channel}.`, ephemeral: true });
-        }
-
-        if (sub === 'estado') {
-            config.enabled = interaction.options.getBoolean('activo');
-            await db.saveWelcomeConfig(guildId, config);
-            return interaction.reply({ content: `✅ Sistema de bienvenida **${config.enabled ? 'ACTIVADO' : 'DESACTIVADO'}**.`, ephemeral: true });
-        }
-
-        if (sub === 'personalizar') {
-            const mensaje = interaction.options.getString('mensaje');
-            const titulo = interaction.options.getString('titulo');
-            const subtitulo = interaction.options.getString('subtitulo');
-            const fondo = interaction.options.getString('fondo_url');
-            const color = interaction.options.getString('color_borde');
-
-            if (mensaje) config.message = mensaje;
-            if (titulo) config.cardTitle = titulo;
-            if (subtitulo) config.cardSubtitle = subtitulo;
-            if (fondo) config.bgImage = fondo;
-            if (color) {
-                config.borderColor = color;
-                config.usernameColor = color;
-            }
-
-            await db.saveWelcomeConfig(guildId, config);
-            return interaction.reply({ content: '✅ Configuración de bienvenida actualizada correctamente.', ephemeral: true });
-        }
-
-        if (sub === 'test') {
-            await interaction.deferReply({ ephemeral: true });
-            const buffer = await generateWelcomeCard(interaction.member, config);
-            const attachment = new AttachmentBuilder(buffer, { name: 'welcome.png' });
-            const text = (config.message || '¡Bienvenido {user}!')
-                .replace('{user}', `<@${interaction.user.id}>`)
-                .replace('{server}', interaction.guild.name)
-                .replace('{count}', interaction.guild.memberCount);
-
-            const targetChannel = interaction.guild.channels.cache.get(config.channelId) || interaction.channel;
-            await targetChannel.send({ content: text, files: [attachment] });
-            return interaction.editReply({ content: `✅ Prueba enviada a ${targetChannel}.` });
+    if (config.bgImage) {
+        try {
+            const bg = await loadImage(config.bgImage);
+            const scale = Math.max(width / bg.width, height / bg.height);
+            const x = (width / 2) - (bg.width / 2) * scale;
+            const y = (height / 2) - (bg.height / 2) * scale;
+            ctx.drawImage(bg, x, y, bg.width * scale, bg.height * scale);
+        } catch (err) {
+            console.error('Error cargando fondo:', err.message);
         }
     }
-};
+
+    // 2. Capa oscura semitransparente (estilo Koya)
+    const overlayOpacity = config.overlayOpacity ?? 0.55;
+    ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
+    ctx.fillRect(20, 20, width - 40, height - 40);
+
+    // 3. Avatar circular en el centro superior
+    const avatarSize = 130;
+    const avatarX = width / 2;
+    const avatarY = 105;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.clip();
+
+    const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
+    const avatar = await loadImage(avatarURL);
+    ctx.drawImage(avatar, avatarX - avatarSize / 2, avatarY - avatarSize / 2, avatarSize, avatarSize);
+    ctx.restore();
+
+    // Borde del avatar
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2, true);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = config.borderColor || '#ff5c8a';
+    ctx.stroke();
+
+    // 4. Textos personalizados
+    ctx.textAlign = 'center';
+
+    const titleText = (config.cardTitle || '¡BIENVENIDO!')
+        .replace('{user}', member.user.username)
+        .replace('{server}', member.guild.name);
+    ctx.fillStyle = config.titleColor || '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText(titleText, width / 2, 220);
+
+    ctx.fillStyle = config.usernameColor || '#ff5c8a';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText(member.user.tag || member.user.username, width / 2, 260);
+
+    const subtitleText = (config.cardSubtitle || 'Eres el miembro #{count}')
+        .replace('{count}', member.guild.memberCount)
+        .replace('{server}', member.guild.name)
+        .replace('{user}', member.user.username);
+    ctx.fillStyle = config.subtitleColor || '#d1d5db';
+    ctx.font = '20px sans-serif';
+    ctx.fillText(subtitleText, width / 2, 298);
+
+    return canvas.toBuffer('image/png');
+}

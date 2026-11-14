@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, AttachmentBuilder } = require('discord.js');
-const { generateWelcomeCard } = require('../../module/welcomeCard');
-const db = require('../../database/db'); // Ajusta según tu exportación de db.js
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, AttachmentBuilder } from 'discord.js';
+import { generateWelcomeCard } from '../../module/welcomeCard.js';
+import db from '../../database/db.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('welcome')
         .setDescription('Configura el sistema de bienvenida estilo Koya')
@@ -35,7 +35,6 @@ module.exports = {
         const sub = interaction.options.getSubcommand();
         const guildId = interaction.guild.id;
 
-        // Obtener o inicializar configuración en tu DB
         let config = await db.getWelcomeConfig(guildId) || {
             enabled: true,
             channelId: interaction.channel.id,
