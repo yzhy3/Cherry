@@ -4,13 +4,16 @@ import { config } from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { startApiServer } from './api/server.js';
+
+// Importación compatible por defecto para evitar errores de módulos
+import apiModule from './api/server.js';
+const startApiServer = apiModule.startApiServer || apiModule;
 
 config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Parche de Discord VR utilizando la importación existente
+// Parche de Discord VR
 try {
   DefaultWebSocketManagerOptions.identifyProperties.browser = "Discord VR";
   DefaultWebSocketManagerOptions.identifyProperties.device = "Discord VR";
@@ -42,31 +45,36 @@ if (fs.existsSync(handlersPath)) {
 
 // ===== Cargar events =====
 const eventsPath = path.join(__dirname, 'events');
-for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
-  const event = await import(`file://${path.join(eventsPath, file)}`);
-  if (event.default?.once) {
-    client.once(event.default.name, (...args) => event.default.execute(...args, client));
-  } else if (event.default?.name) {
-    client.on(event.default.name, (...args) => event.default.execute(...args, client));
+if (fs.existsSync(eventsPath)) {
+  for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
+    const event = await import(`file://${path.join(eventsPath, file)}`);
+    if (event.default?.once) {
+      client.once(event.default.name, (...args) => event.default.execute(...args, client));
+    } else if (event.default?.name) {
+      client.on(event.default.name, (...args) => event.default.execute(...args, client));
+    }
+    console.log(`✅ Evento: ${event.default?.name || file}`);
   }
-  console.log(`✅ Evento: ${event.default?.name || file}`);
 }
 
-client.once('clientReady', () => {
+client.once('ready', () => {
   console.log(`\n🍒 Cherry online como ${client.user.tag}`);
   console.log(`📊 En ${client.guilds.cache.size} servidores`);
+  
   client.user.setPresence({
-  activities: [{
-    name: '🔗 /help',
-    type: ActivityType.Custom,
-  }],
-  status: 'online',
-});
-
+    activities: [{
+      name: '✨ /welcome',
+      type: ActivityType.Custom,
+    }],
+    status: 'online',
+  });
   
   // API interna (para el dashboard)
   try {
-    startApiServer(client);
+    if (typeof startApiServer === 'function') {
+      startApiServer(client);
+      console.log('🌐 API del panel iniciada correctamente');
+    }
   } catch (err) {
     console.log('⚠️ API interna no iniciada:', err.message);
   }
