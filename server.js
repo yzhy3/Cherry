@@ -4,14 +4,21 @@ import { config } from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
-// Importación compatible por defecto para evitar errores de módulos
-import apiModule from './api/server.js';
-const startApiServer = apiModule.startApiServer || apiModule;
+import { createRequire } from 'module';
 
 config();
 
+const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Importar de forma segura la API del panel (compatible con CommonJS)
+let startApiServer = null;
+try {
+  const apiModule = require('./api/server.js');
+  startApiServer = apiModule.startApiServer || apiModule;
+} catch (err) {
+  console.log('⚠️ No se pudo cargar ./api/server.js:', err.message);
+}
 
 // Parche de Discord VR
 try {
