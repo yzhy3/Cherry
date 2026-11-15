@@ -14,7 +14,8 @@ function load() {
   if (!fs.existsSync(dbPath)) {
     const initial = {
       guild_settings: {},
-      welcome_configs: {}, // Añadido para las tarjetas web
+      welcome_configs: {},
+      avisos_configs: {},
       user_levels: {},
       level_roles: {},
       warnings: {},
@@ -27,11 +28,13 @@ function load() {
   try {
     const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
     if (!data.welcome_configs) data.welcome_configs = {};
+    if (!data.avisos_configs) data.avisos_configs = {};
     return data;
   } catch {
     return {
       guild_settings: {},
       welcome_configs: {},
+      avisos_configs: {},
       user_levels: {},
       level_roles: {},
       warnings: {},
@@ -59,7 +62,7 @@ function markDirty() {
   dirty = true;
 }
 
-// ===== NUEVAS FUNCIONES PARA BIENVENIDA WEB / DISCORD =====
+// ===== BIENVENIDA (compatibilidad) =====
 export function getWelcomeConfig(guildId) {
   return db.welcome_configs[guildId] || null;
 }
@@ -69,8 +72,79 @@ export function saveWelcomeConfig(guildId, config) {
   markDirty();
   return true;
 }
-// ========================================================
 
+// ===== AVISOS (Entrada / Salida / Ban / Boost) =====
+const DEFAULT_AVISO = {
+  enabled: false,
+  channelId: '',
+  message: '',
+};
+
+const DEFAULT_ENTRADA = {
+  enabled: false,
+  channelId: '',
+  message: '¡Hola {user}, bienvenido/a a **{server}**!',
+  cardTitle: '¡BIENVENIDO!',
+  cardSubtitle: 'Eres el miembro #{count} en {server}',
+  bgImage: '',
+  bgColor: '#1e1f22',
+  borderColor: '#ff5c8a',
+  titleColor: '#ffffff',
+  usernameColor: '#ff5c8a',
+  subtitleColor: '#d1d5db',
+  overlayOpacity: 0.55,
+};
+
+export function getAvisosConfig(guildId) {
+  if (!db.avisos_configs[guildId]) {
+    // Migrar welcome_configs si existe
+    const oldWelcome = db.welcome_configs[guildId];
+    db.avisos_configs[guildId] = {
+      entrada: oldWelcome ? { ...DEFAULT_ENTRADA, ...oldWelcome } : { ...DEFAULT_ENTRADA },
+      salida: {
+        ...DEFAULT_AVISO,
+        message: '👋 **{user}** ha salido del servidor.',
+      },
+      ban: {
+        ...DEFAULT_AVISO,
+        message: '🔨 **{user}** ha sido baneado del servidor.',
+      },
+      boost: {
+        ...DEFAULT_AVISO,
+        message: '🚀 ¡**{user}** ha impulsado el servidor! ¡Gracias por el boost!',
+      },
+    };
+    markDirty();
+  }
+  return db.avisos_configs[guildId];
+}
+
+export function saveAvisosConfig(guildId, config) {
+  db.avisos_configs[guildId] = config;
+  // Mantener sincronizado welcome_configs para compatibilidad
+  if (config.entrada) {
+    db.welcome_configs[guildId] = config.entrada;
+  }
+  markDirty();
+  return true;
+}
+
+export function getAvisoConfig(guildId, type) {
+  const avisos = getAvisosConfig(guildId);
+  return avisos[type] || null;
+}
+
+export function saveAvisoConfig(guildId, type, config) {
+  const avisos = getAvisosConfig(guildId);
+  avisos[type] = config;
+  if (type === 'entrada') {
+    db.welcome_configs[guildId] = config;
+  }
+  markDirty();
+  return true;
+}
+
+// ===== RESTO =====
 export function getGuildSettings(guildId) {
   if (!db.guild_settings[guildId]) {
     db.guild_settings[guildId] = {
@@ -212,6 +286,10 @@ export function removeTempVoice(channelId) {
 export default {
   getWelcomeConfig,
   saveWelcomeConfig,
+  getAvisosConfig,
+  saveAvisosConfig,
+  getAvisoConfig,
+  saveAvisoConfig,
   getGuildSettings,
   updateGuildSettings,
   getUserLevel,
